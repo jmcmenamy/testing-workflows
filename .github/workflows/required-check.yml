@@ -99,6 +99,36 @@ jobs:
       run: |
         echo "Pull Request Number - ${{ steps.cpr.outputs.pull-request-number }}"
         echo "Pull Request URL - ${{ steps.cpr.outputs.pull-request-url }}"
+        echo "Branch created: ${{ steps.branch.outputs.name }}"
+
+    - name: Trigger workflow_dispatch on new branch
+      if: steps.cpr.outputs.pull-request-number != ''
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        echo "🚀 Triggering workflow_dispatch to run checks on branch: ${{ steps.branch.outputs.name }}"
+
+        # Use GitHub CLI to trigger workflow_dispatch on the new branch
+        gh workflow run required-check.yml --ref ${{ steps.branch.outputs.name }}
+
+        echo "✅ workflow_dispatch triggered on branch ${{ steps.branch.outputs.name }}"
+        echo "Branch created: ${{ steps.branch.outputs.name }}"
+
+    - name: Trigger workflow_dispatch on new branch
+      if: steps.cpr.outputs.pull-request-number != ''
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        echo "🚀 Triggering workflow_dispatch to run checks on branch: ${{ steps.branch.outputs.name }}"
+
+        # Use GitHub API to trigger workflow_dispatch on the new branch
+        curl -X POST \
+          -H "Accept: application/vnd.github.v3+json" \
+          -H "Authorization: token $GITHUB_TOKEN" \
+          https://api.github.com/repos/${{ github.repository }}/actions/workflows/required-check.yml/dispatches \
+          -d "{\"ref\":\"${{ steps.branch.outputs.name }}\"}"
+
+        echo "✅ workflow_dispatch triggered on branch ${{ steps.branch.outputs.name }}"
 
   required-check:
     name: Required Status Check
