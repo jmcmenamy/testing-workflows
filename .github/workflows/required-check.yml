@@ -130,25 +130,19 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Create check run (pending)
+    - name: Set commit status (pending)
       if: github.event_name == 'workflow_dispatch' && github.event.inputs.pr_number != ''
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        # Create a check run that mimics exactly what GitHub does for PR events
-        CHECK_RUN_ID=$(gh api repos/${{ github.repository }}/check-runs \
-          --field name="Required Status Check" \
-          --field head_sha="${{ github.sha }}" \
-          --field status="in_progress" \
-          --field started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-          --field details_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
-          --field external_id="run-${{ github.run_id }}" \
-          --field output[title]="Required Status Check" \
-          --field output[summary]="Running required checks..." \
-          --jq '.id')
+        # Create commit status that automatically associates with PRs
+        gh api repos/${{ github.repository }}/statuses/${{ github.sha }} \
+          --field state="pending" \
+          --field context="Required Status Check" \
+          --field description="Required check is running..." \
+          --field target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
-        echo "CHECK_RUN_ID=$CHECK_RUN_ID" >> $GITHUB_ENV
-        echo "Created check run: $CHECK_RUN_ID"
+        echo "Created commit status for SHA: ${{ github.sha }}"
 
     - name: Run required check
       run: |
@@ -159,7 +153,7 @@ jobs:
         echo "PR Number: ${{ github.event.inputs.pr_number }}"
 
         # Simulate some test work
-        sleep 10
+        sleep 30
 
         echo "✅ Required check passed!"
 
@@ -172,30 +166,25 @@ jobs:
         echo "PR Number: ${{ github.event.number }}"
         echo "✅ Branch attribution validated!"
 
-    - name: Update check run (completed)
-      if: always() && github.event_name == 'workflow_dispatch' && github.event.inputs.pr_number != '' && env.CHECK_RUN_ID != ''
+    - name: Update commit status (completed)
+      if: always() && github.event_name == 'workflow_dispatch' && github.event.inputs.pr_number != ''
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        # Determine conclusion based on job outcome
+        # Determine state based on job outcome
         if [ "${{ job.status }}" == "success" ]; then
-          CONCLUSION="success"
-          TITLE="✅ Required check passed"
-          SUMMARY="All required checks completed successfully."
+          STATE="success"
+          DESCRIPTION="✅ Required check completed successfully"
         else
-          CONCLUSION="failure"
-          TITLE="❌ Required check failed"
-          SUMMARY="Required checks failed. Please review the logs."
+          STATE="failure"
+          DESCRIPTION="❌ Required check failed"
         fi
 
-        # Update the check run to completed (mimics exactly what GitHub does)
-        gh api repos/${{ github.repository }}/check-runs/${{ env.CHECK_RUN_ID }} \
-          --method PATCH \
-          --field status="completed" \
-          --field conclusion="$CONCLUSION" \
-          --field completed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-          --field output[title]="$TITLE" \
-          --field output[summary]="$SUMMARY" \
-          --field details_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        # Update the commit status
+        gh api repos/${{ github.repository }}/statuses/${{ github.sha }} \
+          --field state="$STATE" \
+          --field context="Required Status Check" \
+          --field description="$DESCRIPTION" \
+          --field target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
-        echo "Updated check run ${{ env.CHECK_RUN_ID }} to: $CONCLUSION"
+        echo "Updated commit status to: $STATE"
