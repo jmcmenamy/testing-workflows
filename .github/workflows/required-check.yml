@@ -1,0 +1,125 @@
+name: Required Check Workflow
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch_name:
+        description: 'Name for the new branch (optional)'
+        required: false
+        default: ''
+      pr_title:
+        description: 'Title for the PR (optional)'
+        required: false
+        default: 'Test PR from workflow_dispatch'
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+
+jobs:
+  create-pr-and-test:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        fetch-depth: 0
+    
+    - name: Configure Git
+      run: |
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+    
+    - name: Generate branch name
+      id: branch
+      run: |
+        if [ -n "${{ github.event.inputs.branch_name }}" ]; then
+          BRANCH_NAME="${{ github.event.inputs.branch_name }}"
+        else
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          BRANCH_NAME="test-branch-${TIMESTAMP}"
+        fi
+        echo "name=${BRANCH_NAME}" >> $GITHUB_OUTPUT
+        echo "Generated branch name: ${BRANCH_NAME}"
+    
+    - name: Create new branch
+      run: |
+        git checkout -b ${{ steps.branch.outputs.name }}
+        echo "Branch created: ${{ steps.branch.outputs.name }}"
+    
+    - name: Make a test change
+      run: |
+        echo "# Test Change" >> test-file.md
+        echo "This file was created by workflow_dispatch on $(date)" >> test-file.md
+        echo "Branch: ${{ steps.branch.outputs.name }}" >> test-file.md
+        echo "Triggered by: ${{ github.actor }}" >> test-file.md
+        echo "Run ID: ${{ github.run_id }}" >> test-file.md
+        git add test-file.md
+        git commit -m "Add test file from workflow_dispatch"
+    
+    - name: Push branch
+      run: |
+        git push origin ${{ steps.branch.outputs.name }}
+    
+    - name: Create Pull Request
+      uses: peter-evans/create-pull-request@v5
+      id: cpr
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        branch: ${{ steps.branch.outputs.name }}
+        base: main
+        title: ${{ github.event.inputs.pr_title || format('Test PR from workflow_dispatch - {0}', steps.branch.outputs.name) }}
+        body: |
+          This PR was created automatically by workflow_dispatch.
+
+          **Details:**
+          - Branch: `${{ steps.branch.outputs.name }}`
+          - Triggered by: @${{ github.actor }}
+          - Workflow run: [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          - Timestamp: ${{ github.event.repository.updated_at }}
+
+          This PR should trigger the required checks for merging to main.
+        labels: |
+          automated
+          workflow-dispatch
+        assignees: ${{ github.actor }}
+        reviewers: ${{ github.actor }}
+        draft: false
+        delete-branch: true
+
+    - name: Check PR creation result
+      run: |
+        echo "Pull Request Number - ${{ steps.cpr.outputs.pull-request-number }}"
+        echo "Pull Request URL - ${{ steps.cpr.outputs.pull-request-url }}"
+
+  required-check:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Run required check
+      run: |
+        echo "Running required check..."
+        echo "Event: ${{ github.event_name }}"
+        echo "Branch: ${{ github.ref_name }}"
+        echo "SHA: ${{ github.sha }}"
+        
+        # Simulate some test work
+        sleep 10
+        
+        echo "✅ Required check passed!"
+    
+    - name: Validate branch attribution
+      if: github.event_name == 'pull_request'
+      run: |
+        echo "Validating branch attribution..."
+        echo "PR Head Ref: ${{ github.head_ref }}"
+        echo "PR Base Ref: ${{ github.base_ref }}"
+        echo "PR Number: ${{ github.event.number }}"
+        echo "✅ Branch attribution validated!"
