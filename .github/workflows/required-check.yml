@@ -17,6 +17,10 @@ on:
         description: 'Title for the PR (optional)'
         required: false
         default: 'Test PR from workflow_dispatch'
+      pr_number:
+        description: 'PR number to update status for'
+        required: false
+        default: ''
   pull_request:
     branches: [ main ]
   push:
@@ -109,32 +113,46 @@ jobs:
       run: |
         echo "🚀 Triggering workflow_dispatch to run checks on branch: ${{ steps.branch.outputs.name }}"
 
-        # Use GitHub CLI to trigger workflow_dispatch on the new branch
-        gh workflow run required-check.yml --ref ${{ steps.branch.outputs.name }}
+        # Trigger workflow with PR number as input
+        gh workflow run required-check.yml \
+          --ref ${{ steps.branch.outputs.name }} \
+          -f pr_number="${{ steps.cpr.outputs.pull-request-number }}"
 
-        echo "✅ workflow_dispatch triggered on branch ${{ steps.branch.outputs.name }}"
-        echo "Branch created: ${{ steps.branch.outputs.name }}"
+        echo "✅ workflow_dispatch triggered with PR number: ${{ steps.cpr.outputs.pull-request-number }}"
 
   required-check:
     name: Required Status Check
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
+
+    - name: Update PR status to pending
+      if: github.event_name == 'workflow_dispatch' && github.event.inputs.pr_number != ''
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        # Use the current SHA (same as PR head SHA when run on that branch)
+        gh api repos/${{ github.repository }}/statuses/${{ github.sha }} \
+          --field state="pending" \
+          --field context="required-check" \
+          --field description="Required check is running..." \
+          --field target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
     - name: Run required check
       run: |
         echo "Running required check..."
         echo "Event: ${{ github.event_name }}"
         echo "Branch: ${{ github.ref_name }}"
         echo "SHA: ${{ github.sha }}"
-        
+        echo "PR Number: ${{ github.event.inputs.pr_number }}"
+
         # Simulate some test work
         sleep 10
-        
+
         echo "✅ Required check passed!"
-    
+
     - name: Validate branch attribution
       if: github.event_name == 'pull_request'
       run: |
@@ -143,3 +161,24 @@ jobs:
         echo "PR Base Ref: ${{ github.base_ref }}"
         echo "PR Number: ${{ github.event.number }}"
         echo "✅ Branch attribution validated!"
+
+    - name: Update PR status to completed
+      if: always() && github.event_name == 'workflow_dispatch' && github.event.inputs.pr_number != ''
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        # Determine status based on job outcome
+        if [ "${{ job.status }}" == "success" ]; then
+          STATE="success"
+          DESCRIPTION="Required check completed successfully"
+        else
+          STATE="failure"
+          DESCRIPTION="Required check failed"
+        fi
+
+        # Update the status using current SHA (same as PR head SHA when run on that branch)
+        gh api repos/${{ github.repository }}/statuses/${{ github.sha }} \
+          --field state="$STATE" \
+          --field context="required-check" \
+          --field description="$DESCRIPTION" \
+          --field target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
