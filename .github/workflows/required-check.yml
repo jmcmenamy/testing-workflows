@@ -19,7 +19,7 @@ on:
 jobs:
   create-pr-and-test:
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'push'
     
     steps:
     - name: Checkout code
@@ -97,7 +97,6 @@ jobs:
 
   required-check:
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' || github.event_name == 'push'
     
     steps:
     - name: Checkout code
