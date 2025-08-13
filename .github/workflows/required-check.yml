@@ -1,4 +1,9 @@
-name: Required Check Workflow
+name: Required Check
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
 
 on:
   workflow_dispatch:
