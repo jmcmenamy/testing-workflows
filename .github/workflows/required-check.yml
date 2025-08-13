@@ -62,8 +62,8 @@ jobs:
         echo "Branch: ${{ steps.branch.outputs.name }}" >> test-file.md
         echo "Triggered by: ${{ github.actor }}" >> test-file.md
         echo "Run ID: ${{ github.run_id }}" >> test-file.md
-        git add test-file.md
-        git commit -m "Add test file from workflow_dispatch"
+        # git add test-file.md
+        # git commit -m "Add test file from workflow_dispatch"
     
     - name: Push branch
       run: |
@@ -101,6 +101,7 @@ jobs:
         echo "Pull Request URL - ${{ steps.cpr.outputs.pull-request-url }}"
 
   required-check:
+    name: Required Status Check
     runs-on: ubuntu-latest
     
     steps:
