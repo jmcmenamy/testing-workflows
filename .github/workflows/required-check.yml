@@ -142,7 +142,7 @@ jobs:
           --field status="in_progress" \
           --field started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
           --field details_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
-          --field external_id="${{ github.run_id }}" \
+          --field external_id="run-${{ github.run_id }}" \
           --field output[title]="Required Status Check" \
           --field output[summary]="Running required checks..." \
           --jq '.id')
