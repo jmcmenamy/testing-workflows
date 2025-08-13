@@ -184,7 +184,6 @@ jobs:
         gh api repos/${{ github.repository }}/statuses/${{ github.sha }} \
           --field state="$STATE" \
           --field context="Required Status Check" \
-          --field description="$DESCRIPTION" \
           --field target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
         echo "Updated commit status to: $STATE"
